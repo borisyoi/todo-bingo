@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>やりたいことビンゴ</title>
+  <style>
+    :root {
+      --accent: #2b6cb0;
+      --accent-2: #3182ce;
+      --bg: #f7fafc;
+      --border: #e2e8f0;
+      --checked: #edf2f7;
+      --win: #ffe08a;
+    }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; background: var(--bg); margin: 0; padding: 24px; color: #1a202c; }
+    h1 { margin: 0 0 8px; }
+    .container { max-width: 920px; margin: 0 auto; }
+    .panel { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,.04); }
+    .flex { display: flex; gap: 16px; flex-wrap: wrap; }
+    textarea { width: 100%; min-height: 160px; font-size: 14px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; resize: vertical; }
+    label { display: block; font-size: 13px; margin: 8px 0; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    input[type="text"], input[type="number"] { border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 14px; }
+
+    /* ▼ ボタンのスタイルは .btn に限定（セルに影響しないようにする） */
+    .btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
+    .btn.secondary { background: #4a5568; }
+    .btn:hover { background: var(--accent-2); }
+
+    .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 12px; }
+
+    /* ▼ セル（ボタンだけどカード風にする＆文字色は濃い色で固定） */
+    .cell {
+      background: #fff;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      min-height: 90px;
+      padding: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      position: relative;
+      cursor: pointer;
+
+      color: #1a202c;           /* 文字を濃いグレーに */
+      font-size: 14px;
+      line-height: 1.4;
+    }
+    .cell.free {
+      background: #f0fff4;      /* 淡い緑の背景 */
+      border-color: #a7f3d0;
+      color: #234e52;           /* Freeの文字は濃い緑系で見やすく */
+      font-weight: 600;
+    }
+    .cell.checked {
+      outline: 3px solid var(--accent-2);
+      background: var(--checked);
+      color: #1a202c;           /* チェック時も文字は濃い色のまま */
+    }
+    .cell.win {
+      box-shadow: inset 0 0 0 3px #f6ad55;
+      background: var(--win);
+      color: #1a202c;           /* 勝ちラインでも文字が見える */
+    }
+    .cell:hover { background: #f8fafc; } /* 視認性UPの軽いホバー */
+
+    .footer { font-size: 13px; color: #4a5568; margin-top: 8px; }
+    .stats { margin-top: 8px; font-weight: 600; }
+    @media (max-width: 480px) { .cell { min-height: 64px; font-size: 13px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>やりたいことビンゴ</h1>
+    <p class="footer">複数行のリストから、5×5のビンゴカードを作成します。中央のFreeは任意。</p>
+
+    <div class="flex">
+      <div class="panel" style="flex:1 1 380px;">
+        <label for="list">やりたいことリスト（1行につき1項目）</label>
+        <textarea id="list" placeholder="例：&#10;新作小説を1冊読了&#10;早朝ランニング5km&#10;美術館に行く&#10;手帳を週次レビュー&#10;…"></textarea>
+
+        <div class="controls" style="margin-top:8px;">
+          <label><input type="checkbox" id="useFree" checked> 中央をFreeにする</label>
+          <label>シード: <input type="text" id="seed" placeholder="任意（同じカードを再現）"/></label>
+          <button id="generate" class="btn">カード生成</button>
+          <button id="clear" class="btn secondary">カードをクリア</button>
+        </div>
+        <p class="footer">※ リストは25項目以上が理想。Freeありなら24項目以上でOK。足りない場合は重複なく選べる範囲で穴埋めします。</p>
+      </div>
+
+      <div class="panel" style="flex:1 1 380px;">
+        <div class="stats">ビンゴ: <span id="bingoCount">0</span> / 12（5行＋5列＋2斜め）</div>
+        <div id="grid" class="grid" aria-label="ビンゴカード" role="grid"></div>
+        <div class="footer">クリックでチェック／もう一度クリックで解除。キーボード操作: Tab→Enter。</div>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ========= ユーティリティ ========= */
+function mulberry32(a) {
+  // 軽量な擬似乱数生成（シード再現用）
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function shuffle(array, rng=Math.random) {
+  for (let i=array.length-1; i>0; i--) {
+    const j = Math.floor(rng()* (i+1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+function parseList(raw) {
+  return raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+}
+function saveState(state) {
+  localStorage.setItem("todo-bingo-state", JSON.stringify(state));
+}
+function loadState() {
+  try {
+    const s = localStorage.getItem("todo-bingo-state");
+    return s ? JSON.parse(s) : null;
+  } catch {
+    return null;
+  }
+}
+
+/* ========= ビンゴロジック ========= */
+const N = 5;
+
+function makeBoard(items, useFree=true, seedStr="") {
+  // 重複除外
+  const uniq = Array.from(new Set(items));
+
+  // RNG（シード対応）
+  let rng = Math.random;
+  if (seedStr && seedStr.length) {
+    // FNV風ハッシュで文字列→数値
+    let h = 2166136261 >>> 0;
+    for (let i=0;i<seedStr.length;i++){
+      h ^= seedStr.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    rng = mulberry32(h >>> 0);
+  }
+
+  // 必要数を揃える
+  const need = N*N - (useFree ? 1 : 0);
+  const pool = uniq.slice();
+  shuffle(pool, rng);
+  const selected = pool.slice(0, need);
+
+  // 5x5へ割り当て（中央Freeは自動チェック済み）
+  const board = Array.from({length:N}, ()=>Array(N).fill(null));
+  let k = 0;
+  for (let r=0; r<N; r++) {
+    for (let c=0; c<N; c++) {
+      if (useFree && r===2 && c===2) {
+        board[r][c] = { text: "Free", checked: true, free: true };
+      } else {
+        const txt = selected[k++] ?? "";
+        board[r][c] = { text: txt || "（未設定）", checked: false, free: false };
+      }
+    }
+  }
+  return board;
+}
+
+function countBingos(board) {
+  const lines = [];
+
+  // 行
+  for (let r=0; r<N; r++) {
+    lines.push(board[r].map(cell => cell.checked));
+  }
+  // 列
+  for (let c=0; c<N; c++) {
+    lines.push(board.map(row => row[c].checked));
+  }
+  // 斜め2本
+  lines.push(board.map((row,i)=> row[i].checked));
+  lines.push(board.map((row,i)=> row[N-1-i].checked));
+
+  const wins = lines.map(line => line.every(Boolean));
+  const count = wins.filter(Boolean).length;
+
+  // ハイライト用の勝ちセルマスク
+  const winMask = Array.from({length:N}, ()=>Array(N).fill(false));
+  let idx = 0;
+  // 行
+  for (let r=0;r<N;r++){
+    const isWin = wins[idx++];
+    if (isWin) for (let c=0;c<N;c++) winMask[r][c] = true;
+  }
+  // 列
+  for (let c=0;c<N;c++){
+    const isWin = wins[idx++];
+    if (isWin) for (let r=0;r<N;r++) winMask[r][c] = true;
+  }
+  // 斜め
+  const isWinDiag1 = wins[idx++];
+  if (isWinDiag1) for (let i=0;i<N;i++) winMask[i][i] = true;
+  const isWinDiag2 = wins[idx++];
+  if (isWinDiag2) for (let i=0;i<N;i++) winMask[i][N-1-i] = true;
+
+  return { count, winMask };
+}
+
+/* ========= UI描画 ========= */
+const gridEl = document.getElementById("grid");
+const bingoCountEl = document.getElementById("bingoCount");
+const listEl = document.getElementById("list");
+const useFreeEl = document.getElementById("useFree");
+const seedEl = document.getElementById("seed");
+
+let board = null;
+
+function render() {
+  gridEl.innerHTML = "";
+  if (!board) return;
+
+  const { count, winMask } = countBingos(board);
+  bingoCountEl.textContent = String(count);
+
+  for (let r=0;r<N;r++){
+    for (let c=0;c<N;c++){
+      const cell = board[r][c];
+      const div = document.createElement("button");
+      div.className = "cell" + (cell.free ? " free" : "") + (cell.checked ? " checked" : "") + (winMask[r][c] ? " win" : "");
+      div.setAttribute("role","gridcell");
+      div.setAttribute("aria-pressed", cell.checked ? "true" : "false");
+      div.title = cell.text;
+      div.textContent = cell.text;
+      div.addEventListener("click", () => {
+        if (!cell.free) {
+          cell.checked = !cell.checked;
+          saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: seedEl.value });
+          render();
+        }
+      });
+      gridEl.appendChild(div);
+    }
+  }
+}
+
+document.getElementById("generate").addEventListener("click", () => {
+  const items = parseList(listEl.value);
+  board = makeBoard(items, useFreeEl.checked, seedEl.value.trim());
+  saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: seedEl.value });
+  render();
+});
+
+document.getElementById("clear").addEventListener("click", () => {
+  board = null;
+  gridEl.innerHTML = "";
+  bingoCountEl.textContent = "0";
+  localStorage.removeItem("todo-bingo-state");
+});
+
+(function init(){
+  const s = loadState();
+  if (s) {
+    board = s.board;
+    listEl.value = s.list ?? "";
+    useFreeEl.checked = !!s.useFree;
+    seedEl.value = s.seed ?? "";
+    render();
+  }
+})();
+</script>
+</body>
+</html>
