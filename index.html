@@ -26,7 +26,7 @@
     .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     input[type="text"] { border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 14px; }
 
-    /* ボタンは .btn に限定 */
+    /* ボタンは .btn に限定（セルに影響しない） */
     .btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
     .btn.secondary { background: #4a5568; }
     .btn:hover { background: var(--accent-2); }
@@ -73,11 +73,8 @@
     @media (max-width: 480px) { .cell { min-height: 64px; font-size: 13px; } }
   </style>
 
-
-<!-- html2canvasを正しく読み込む（この1行のみ） -->
-https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js</script>
-
-  
+  <!-- ★正しい <script> タグで html2canvas を読み込む（この1行だけ。生のURL文字列は置かない） -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/htmls</script>
 </head>
 <body>
   <div class="container">
@@ -326,5 +323,3 @@ document.getElementById("saveImage").addEventListener("click", async () => {
 </script>
 </body>
 </html>
-
-
