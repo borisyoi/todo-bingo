@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>やりたいことビンゴ</title>
 
-  <!-- 見やすい配色＋枠サイズ固定 -->
+  <!-- 見やすい配色＋枠サイズ固定＋縦横中央揃え（Grid） -->
   <style>
     :root {
       /* テーマ色 */
@@ -49,7 +49,7 @@
       margin-top: 12px;
     }
 
-    /* ★ セルは正方形に固定（フレックスで縦横中央揃え） */
+    /* ★ セルは正方形固定＋CSS Gridで縦横中央（place-items:center がキモ） */
     .cell {
       width: var(--cell-size);
       height: var(--cell-size);
@@ -58,13 +58,15 @@
       background: #fff;
       border: 1px solid var(--border);
       border-radius: 10px;
-      display: flex;
-      align-items: center;         /* 縦中央 */
-      justify-content: center;     /* 横中央 */
+
+      /* ここを Flex から Grid に変更 */
+      display: grid;
+      place-items: center;        /* 縦横中央揃え（内容の高さに関係なく中央） */
+
       text-align: center;
       position: relative;
       cursor: pointer;
-      overflow: hidden;            /* はみ出しを隠す */
+      overflow: hidden;           /* はみ出しを隠す */
       color: #1a202c;
     }
     .cell.free {
@@ -85,14 +87,13 @@
     }
     .cell:hover { background: #f8fafc; }
 
-    /* ★ セル内テキスト用要素：縦中央揃えのため高さは auto、内容に合わせる */
+    /* ★ セル内テキスト要素：高さは内容に合わせる（中央揃えはセルのGridで保証） */
     .cell .label {
       display: inline-block;   /* コンテンツ高さに合わせる */
       width: 100%;
-      /* height: 100%;  ← 縦中央を崩すため入れない */
       white-space: pre-wrap;   /* 改行保持＋折り返し */
       word-break: break-word;  /* 長い語も折り返し */
-      line-height: 1.2;        /* JS側の計算と揃える */
+      line-height: 1.2;
       text-align: center;      /* 横中央 */
     }
 
@@ -126,7 +127,7 @@
           <button id="saveImage" class="btn secondary">画像として保存</button>
         </div>
 
-        <p class="footer">※ 入力が不足する場合はテンプレで補完（ON時）。枠は固定、長文は自動縮小＆縦中央です。</p>
+        <p class="footer">※ 入力が不足する場合はテンプレで補完（ON時）。枠は固定、長文は自動縮小＆常に縦中央です。</p>
       </div>
 
       <div class="panel" style="flex:1 1 380px;">
@@ -201,7 +202,7 @@ const SUGGESTIONS = [
   "推しのイベントを調べる"
 ];
 
-/* ★ 枠固定＋不足補完対応の盤面生成 */
+/* ★ 不足補完対応の盤面生成 */
 function makeBoard(items, useFree=true, seedStr="") {
   const cleaned = items.map(s => s.trim()).filter(Boolean);
 
@@ -270,7 +271,7 @@ function countBingos(board) {
   return { count, winMask };
 }
 
-/* ========= DOM側：文字を枠に収める（自動縮小／縦中央揃え対応） ========= */
+/* ========= DOM側：文字を枠に収める（自動縮小） ========= */
 function fitCellText(labelEl) {
   const cellEl = labelEl.parentElement;
   if (!cellEl) return;
@@ -283,8 +284,6 @@ function fitCellText(labelEl) {
   let size = Math.floor(maxW / 5);
   const minSize = 10;  // これ以下にはしない（可読性を確保）
 
-  // 縦中央揃えのため、高さは内容に合わせる
-  labelEl.style.height = "auto";
   labelEl.style.fontSize = size + "px";
   labelEl.style.lineHeight = "1.2";
 
@@ -424,14 +423,11 @@ function render() {
       div.setAttribute("aria-pressed", cell.checked ? "true" : "false");
       div.title = cell.text;
 
-      // ★ ラベル要素を追加し、文字サイズを自動調整（縦中央対応）
+      // ★ ラベル要素を追加（Gridが縦横中央にしてくれる）
       const span = document.createElement("span");
       span.className = "label";
       span.textContent = cell.text;
       div.appendChild(span);
-
-      // 測定前に高さを内容に合わせる
-      span.style.height = "auto";
 
       // 枠にテキストを収める（自動縮小）
       fitCellText(span);
