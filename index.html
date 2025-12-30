@@ -433,7 +433,28 @@ document.getElementById("copyUrl").addEventListener("click", async () => {
   }, 1200);
 });
 
+// 共有ダイアログ（対応端末のみ）
+document.getElementById("copyUrl").addEventListener("click", async (ev) => {
+  // すでにcleanUrlを作っているなら流用してOK。なければここで作成
+  let u = location.origin + location.pathname;
+  u = u.replace(/index\.html$/, "");
+  if (!u.endsWith("/")) u += "/";
+
+  // Clipboardへコピー（今の処理はそのまま残してOK）
+  try { await navigator.clipboard.writeText(u); } catch {}
+
+  // 共有ダイアログ（対応ブラウザのみ）
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: document.title, url: u });
+    } catch (e) {
+      // キャンセルなどは無視
+    }
+  }
+});
+
 </script>
 </body>
 </html>
+
 
