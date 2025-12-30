@@ -70,6 +70,7 @@
     .stats { margin-top: 8px; font-weight: 600; }
     @media (max-width: 480px) { .cell { min-height: 64px; font-size: 13px; } }
   </style>
+  https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js</script>
 </head>
 <body>
   <div class="container">
@@ -87,6 +88,7 @@
           <button id="generate" class="btn">カード生成</button>
           <button id="clear" class="btn secondary">カードをクリア</button>
           <button id="shuffle" class="btn">シャッフル</button>
+          <button id="saveImage" class="btn secondary">画像として保存</button>
         </div>
         <p class="footer">※ リストは25項目以上が理想。Freeありなら24項目以上でOK。足りない場合は重複なく選べる範囲で穴埋めします。</p>
       </div>
@@ -295,4 +297,5 @@ document.getElementById("clear").addEventListener("click", () => {
 </script>
 </body>
 </html>
+
 
