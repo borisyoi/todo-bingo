@@ -86,6 +86,7 @@
           <label>シード: <input type="text" id="seed" placeholder="任意（同じカードを再現）"/></label>
           <button id="generate" class="btn">カード生成</button>
           <button id="clear" class="btn secondary">カードをクリア</button>
+          <button id="shuffle" class="btn">シャッフル</button>
         </div>
         <p class="footer">※ リストは25項目以上が理想。Freeありなら24項目以上でOK。足りない場合は重複なく選べる範囲で穴埋めします。</p>
       </div>
@@ -250,6 +251,24 @@ function render() {
 }
 
 document.getElementById("generate").addEventListener("click", () => {
+  
+// ▼ シャッフルボタン：現在のリストからランダム並びで再生成
+document.getElementById("shuffle").addEventListener("click", () => {
+  // 入力欄のテキストを行ごとに取得
+  let items = parseList(listEl.value);
+
+  // 入力欄が空でも、すでにカードがあるならカードから項目を拾う（Free除外）
+  if (items.length === 0 && board) {
+    items = board.flat().filter(cell => !cell.free).map(cell => cell.text).filter(Boolean);
+  }
+
+  // シードなしで毎回ランダム（Math.random使用）
+  board = makeBoard(items, useFreeEl.checked, "");
+
+  // 保存＆再描画
+  saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: "" });
+  render();
+});
   const items = parseList(listEl.value);
   board = makeBoard(items, useFreeEl.checked, seedEl.value.trim());
   saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: seedEl.value });
@@ -276,3 +295,4 @@ document.getElementById("clear").addEventListener("click", () => {
 </script>
 </body>
 </html>
+
