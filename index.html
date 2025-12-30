@@ -90,6 +90,7 @@
           <button id="shuffle" class="btn">シャッフル</button>
           <button id="clear" class="btn secondary">カードをクリア</button>
           <button id="saveImage" class="btn secondary">画像として保存</button>
+          <button id="copyUrl" class="btn secondary">共有URLをコピー</button>
         </div>
         <p class="footer">※ リストは25項目以上が理想。Freeありなら24項目以上でOK。足りない場合は重複なく選べる範囲で穴埋めします。</p>
       </div>
@@ -394,6 +395,45 @@ document.getElementById("saveImage").addEventListener("click", () => {
     render();
   }
 })();
+  
+// ===== 共有URLコピー =====
+document.getElementById("copyUrl").addEventListener("click", async () => {
+  const btn = document.getElementById("copyUrl");
+
+  // 現在ページの“綺麗なURL”を作る（/index.html が付いていたら外す）
+  const cleanUrl = (() => {
+    let u = location.origin + location.pathname;
+    u = u.replace(/index\.html$/, "");
+    if (!u.endsWith("/")) u += "/";
+    return u;
+  })();
+
+  // クリップボードへコピー（Clipboard API → フォールバック）
+  try {
+    await navigator.clipboard.writeText(cleanUrl);
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = cleanUrl;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "absolute";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    ta.remove();
+  }
+
+  // 一時的なフィードバック表示
+  const old = btn.textContent;
+  btn.textContent = "コピーしました！";
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.textContent = old;
+    btn.disabled = false;
+  }, 1200);
+});
+
 </script>
 </body>
 </html>
+
