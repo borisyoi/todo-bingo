@@ -6,17 +6,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>やりたいことビンゴ</title>
 
-  <!-- 見やすい配色＋ボタンは .btn に限定 -->
+  <!-- 見やすい配色＋枠サイズ固定 -->
   <style>
     :root {
+      /* テーマ色 */
       --accent: #2b6cb0;
       --accent-2: #3182ce;
       --bg: #f7fafc;
       --border: #e2e8f0;
       --checked: #edf2f7;
       --win: #ffe08a;
+
+      /* ★ 枠サイズ（好みで変更OK）*/
+      --cell-size: 120px;  /* セルの一辺の長さ */
+      --cell-gap: 6px;     /* セル間の隙間 */
     }
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif; background: var(--bg); margin: 0; padding: 24px; color: #1a202c; }
+
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", sans-serif;
+      background: var(--bg);
+      margin: 0; padding: 24px; color: #1a202c;
+    }
     h1 { margin: 0 0 8px; }
     .container { max-width: 920px; margin: 0 auto; }
     .panel { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px; box-shadow: 0 2px 6px rgba(0,0,0,.04); }
@@ -26,29 +36,36 @@
     .controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     input[type="text"] { border: 1px solid var(--border); border-radius: 8px; padding: 8px; font-size: 14px; }
 
-    /* ボタンは .btn に限定（セルに影響しない） */
+    /* ボタンは .btn に限定（セルに影響させない） */
     .btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 14px; font-weight: 600; cursor: pointer; }
     .btn.secondary { background: #4a5568; }
     .btn:hover { background: var(--accent-2); }
 
-    .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 12px; }
+    /* ★ グリッドは固定幅5列、枠サイズは変数で一括管理 */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(5, var(--cell-size));
+      gap: var(--cell-gap);
+      margin-top: 12px;
+    }
 
-    /* セル（文字を濃く、背景白でも見える） */
+    /* ★ セルは正方形に固定 */
     .cell {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      min-height: unset;          /* 以前のmin-heightを無効化 */
+      padding: 8px;               /* 内側余白（JS側の計測と揃える） */
       background: #fff;
       border: 1px solid var(--border);
       border-radius: 10px;
-      min-height: 90px;
-      padding: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
       text-align: center;
       position: relative;
       cursor: pointer;
+      overflow: hidden;           /* はみ出しを隠す */
       color: #1a202c;
-      font-size: 14px;
-      line-height: 1.4;
     }
     .cell.free {
       background: #f0fff4;
@@ -68,43 +85,21 @@
     }
     .cell:hover { background: #f8fafc; }
 
+    /* ★ セル内テキスト用の要素（JSで挿入する span.label） */
+    .cell .label {
+      display: block;
+      width: 100%;
+      height: 100%;
+      white-space: pre-wrap;   /* 改行を保持しつつ折り返し */
+      word-break: break-word;  /* 長い語も折り返し */
+      line-height: 1.2;        /* 行間はJS側の計算と揃える */
+    }
+
     .footer { font-size: 13px; color: #4a5568; margin-top: 8px; }
     .stats { margin-top: 8px; font-weight: 600; }
-    @media (max-width: 480px) { .cell { min-height: 64px; font-size: 13px; } }
-
-/* === 固定サイズ設定 === */
-:root {
-  --cell-size: 120px;  /* 枠の一辺の長さ（ここを好みで変えてOK） */
-  --cell-gap: 6px;
-}
-
-/* グリッドは固定幅の5列 */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(5, var(--cell-size));
-  gap: var(--cell-gap);
-}
-
-/* セルは正方形に固定（ボタンだが見た目はカード） */
-.cell {
-  width: var(--cell-size);
-  height: var(--cell-size);
-  min-height: unset;             /* 以前のmin-heightを無効化 */
-  padding: 8px;                  /* 内側余白（JS側と揃える） */
-  overflow: hidden;              /* 枠からはみ出さない */
-}
-
-/* セル内のテキスト（JSで挿入するspan用） */
-.cell .label {
-  display: block;
-  width: 100%;
-  height: 100%;
-  white-space: pre-wrap;         /* 改行を保持しつつ折り返す */
-  word-break: break-word;        /* 長い単語でも適宜折り返す */
-  line-height: 1.2;              /* 行間（JSでサイズ調整あり） */
-}
-``
-
+    @media (max-width: 480px) {
+      :root { --cell-size: 88px; } /* スマホでは少し小さめに */
+    }
   </style>
 </head>
 <body>
@@ -115,19 +110,22 @@
     <div class="flex">
       <div class="panel" style="flex:1 1 380px;">
         <label for="list">やりたいことリスト（1行につき1項目）</label>
-        <textarea id="list" placeholder="例：&#10;推しの配信を見る&#10;推しのポストにいいねする&#10;推しのポストをリポストする&#10;推しの配信を共有する&#10;…"></textarea>
+        <textarea id="list" placeholder="例：&#10;推しの配信を見る&#10;推しのポストにいいねする&#10;推しのポストをリポストする"></textarea>
 
         <div class="controls" style="margin-top:8px;">
           <label><input type="checkbox" id="useFree" checked> 中央をFreeにする</label>
           <label>シード: <input type="text" id="seed" placeholder="任意（同じカードを再現）"/></label>
+
+          <!-- 不足分をテンプレで自動補完 -->
+          <label><input type="checkbox" id="autoFill" checked> 足りない分をテンプレで自動補完</label>
+
           <button id="generate" class="btn">カード生成</button>
           <button id="shuffle" class="btn">シャッフル</button>
           <button id="clear" class="btn secondary">カードをクリア</button>
           <button id="saveImage" class="btn secondary">画像として保存</button>
-          <button id="copyUrl" class="btn secondary">共有URLをコピー</button>
-          <label><input type="checkbox" id="autoFill" checked> 足りない分をテンプレで自動補完</label>
         </div>
-        <p class="footer">※ リストは25項目以上が理想。Freeありなら24項目以上でOK。足りない場合は重複なく選べる範囲で穴埋めします。</p>
+
+        <p class="footer">※ 入力が不足する場合はテンプレで補完（ON時）。枠は固定、長文は自動縮小します。</p>
       </div>
 
       <div class="panel" style="flex:1 1 380px;">
@@ -173,416 +171,7 @@ function loadState() {
 /* ========= ビンゴロジック ========= */
 const N = 5;
 
-
-function makeBoard(items, useFree=true, seedStr="") {
-  // ① 入力整形：空行除外・前後空白除去
-  const cleaned = items.map(s => s.trim()).filter(Boolean);
-
-  // ② RNG（シード対応）
-  let rng = Math.random;
-  if (seedStr && seedStr.length) {
-    let h = 2166136261 >>> 0;
-    for (let i=0;i<seedStr.length;i++){
-      h ^= seedStr.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    rng = mulberry32(h >>> 0);
-  }
-  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
-
-  // ③ 必要数を計算
-  const N = 5;
-  const need = (N*N) - (useFree ? 1 : 0);
-
-  // ④ 現在の入力からプール作成（重複は許可：不足時の自由度のため）
-  const pool = cleaned.slice();
-
-  // ⑤ 不足分の埋め方（テンプレONならSUGGESTIONSから、OFFなら自分の入力を重複で）
-  const autoFillEl = document.getElementById("autoFill");
-  const useAutoFill = autoFillEl ? autoFillEl.checked : true; // 既定ON
-
-  while (pool.length < need) {
-    if (useAutoFill) {
-      // テンプレからランダム補完
-      pool.push(pick(SUGGESTIONS));
-    } else {
-      // 自分の入力を重複許可で再使用。何も無ければ「（未設定）」で埋める
-      if (cleaned.length === 0) {
-        pool.push("（未設定）");
-      } else {
-        pool.push(pick(cleaned));
-      }
-    }
-  }
-
-  // ⑥ ランダム並びにする
-  shuffle(pool, rng);
-
-  // ⑦ 5x5に割り当て
-  const board = Array.from({length:N}, ()=>Array(N).fill(null));
-  let k = 0;
-  for (let r=0; r<N; r++) {
-    for (let c=0; c<N; c++) {
-      if (useFree && r===2 && c===2) {
-        board[r][c] = { text: "Free", checked: true, free: true };
-      } else {
-        const txt = pool[k++] ?? "（未設定）";
-        board[r][c] = { text: txt, checked: false, free: false };
-      }
-    }
-  }
-  return board;
-}
-
-
-function countBingos(board) {
-  const lines = [];
-  for (let r=0; r<N; r++) lines.push(board[r].map(cell => cell.checked));
-  for (let c=0; c<N; c++) lines.push(board.map(row => row[c].checked));
-  lines.push(board.map((row,i)=> row[i].checked));
-  lines.push(board.map((row,i)=> row[N-1-i].checked));
-  const wins = lines.map(line => line.every(Boolean));
-  const count = wins.filter(Boolean).length;
-  const winMask = Array.from({length:N}, ()=>Array(N).fill(false));
-  let idx = 0;
-  for (let r=0;r<N;r++){ const isWin = wins[idx++]; if (isWin) for (let c=0;c<N;c++) winMask[r][c] = true; }
-  for (let c=0;c<N;c++){ const isWin = wins[idx++]; if (isWin) for (let r=0;r<N;r++) winMask[r][c] = true; }
-  const isWinDiag1 = wins[idx++]; if (isWinDiag1) for (let i=0;i<N;i++) winMask[i][i] = true;
-  const isWinDiag2 = wins[idx++]; if (isWinDiag2) for (let i=0;i<N;i++) winMask[i][N-1-i] = true;
-  return { count, winMask };
-}
-
-/* ========= UI描画 ========= */
-const gridEl = document.getElementById("grid");
-const bingoCountEl = document.getElementById("bingoCount");
-const listEl = document.getElementById("list");
-const useFreeEl = document.getElementById("useFree");
-const seedEl = document.getElementById("seed");
-
-let board = null;
-
-function render() {
-  gridEl.innerHTML = "";
-  if (!board) return;
-
-  const { count, winMask } = countBingos(board);
-  bingoCountEl.textContent = String(count);
-
-  for (let r=0;r<N;r++){
-    for (let c=0;c<N;c++){
-      const cell = board[r][c];
-      const div = document.createElement("button");
-      div.className = "cell" + (cell.free ? " free" : "") + (cell.checked ? " checked" : "") + (winMask[r][c] ? " win" : "");
-      div.setAttribute("role","gridcell");
-      div.setAttribute("aria-pressed", cell.checked ? "true" : "false");
-
-div.title = cell.text;
-
-const span = document.createElement("span");
-span.className = "label";
-span.textContent = cell.text;
-div.appendChild(span);
-
-// ▼ 枠にテキストを収める（自動縮小）
-fitCellText(span);
-
-      div.addEventListener("click", () => {
-        if (!cell.free) {
-          cell.checked = !cell.checked;
-          saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: seedEl.value });
-          render();
-        }
-      });
-      gridEl.appendChild(div);
-    }
-  }
-}
-
-/* ========= ボタンのイベント ========= */
-document.getElementById("generate").addEventListener("click", () => {
-  const items = parseList(listEl.value);
-  board = makeBoard(items, useFreeEl.checked, seedEl.value.trim());
-  saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: seedEl.value });
-  render();
-});
-
-document.getElementById("shuffle").addEventListener("click", () => {
-  let items = parseList(listEl.value);
-  if (items.length === 0 && board) {
-    items = board.flat().filter(c => !c.free).map(c => c.text).filter(Boolean);
-  }
-  board = makeBoard(items, useFreeEl.checked, ""); // シードなしで毎回ランダム
-  saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: "" });
-  render();
-});
-
-document.getElementById("clear").addEventListener("click", () => {
-  board = null;
-  gridEl.innerHTML = "";
-  bingoCountEl.textContent = "0";
-  localStorage.removeItem("todo-bingo-state");
-});
-
-/* ========= 画像として保存（外部依存ゼロ：Canvasに自前描画） ========= */
-
-// テキスト折り返し（日本語・スペースなしも1文字ずつで折り返す簡易版）
-function wrapLines(ctx, text, maxWidth, maxLines) {
-  const lines = [];
-  let line = "";
-  for (const ch of text) {
-    const test = line + ch;
-    if (ctx.measureText(test).width <= maxWidth) {
-      line = test;
-    } else {
-      lines.push(line);
-      line = ch;
-      if (lines.length >= maxLines) break;
-    }
-  }
-  if (lines.length < maxLines && line) lines.push(line);
-  return lines;
-}
-
-
-function drawBoardToCanvas(board, winMask, scale=2) {
-  // Canvas上でもDOMと同じ見た目で描画する
-  const N = 5;
-  const cell = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-size")) || 120;
-  const gap  = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-gap"))  || 6;
-  const pad  = 8; // DOM側と揃える
-
-  const cellW = cell, cellH = cell;
-  const W = N * cellW + (N - 1) * gap;
-  const H = N * cellH + (N - 1) * gap;
-
-  const canvas = document.createElement("canvas");
-  canvas.width = W * scale;
-  canvas.height = H * scale;
-
-  const ctx = canvas.getContext("2d");
-  ctx.scale(scale, scale);
-
-  // 背景
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, W, H);
-
-  // 1セルずつ描画
-  for (let r = 0; r < N; r++) {
-    for (let c = 0; c < N; c++) {
-      const x = c * (cellW + gap);
-      const y = r * (cellH + gap);
-      const cellObj = board[r][c];
-
-      // 背景色（DOMと合わせる）
-      if (cellObj.free) {
-        ctx.fillStyle = "#f0fff4";
-      } else if (cellObj.checked) {
-        ctx.fillStyle = "#edf2f7";
-      } else if (winMask && winMask[r][c]) {
-        ctx.fillStyle = "#ffe08a";
-      } else {
-        ctx.fillStyle = "#ffffff";
-      }
-      ctx.fillRect(x, y, cellW, cellH);
-
-      // 枠線
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
-
-      // テキスト自動縮小
-      const maxW = cellW - pad * 2;
-      const maxH = cellH - pad * 2;
-
-      // まず「横5文字基準」のサイズから開始
-      let size = Math.floor(maxW / 5);
-      const minSize = 10;
-
-      ctx.textBaseline = "top";
-      ctx.fillStyle = cellObj.free ? "#234e52" : "#1a202c";
-
-      // 和文を折り返すための簡易ラッパー
-      const wrapLines = (fontSize) => {
-        ctx.font = `${fontSize}px 'Noto Sans JP', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
-        const raw = cellObj.text || "";
-        const words = raw.split(/\s+/); // 英単語はスペース区切り、和文は1文字ずつ
-        const lines = [];
-        let line = "";
-
-        // 和文（スペースなし）が多い想定：1文字ずつでも収まるように
-        const pushLine = () => { lines.push(line); line = ""; };
-
-        for (const w of words) {
-          // 和文の塊は1文字ずつ処理
-          if (!/[A-Za-z0-9]/.test(w) && !/\s/.test(w)) {
-            for (const ch of w) {
-              const test = line + ch;
-              if (ctx.measureText(test).width <= maxW) {
-                line = test;
-              } else {
-                pushLine();
-                line = ch;
-              }
-            }
-            // 単語境界のスペースはそのまま次へ
-          } else {
-            const add = (line ? line + " " + w : w);
-            if (ctx.measureText(add).width <= maxW) {
-              line = add;
-            } else {
-              pushLine();
-              line = w;
-            }
-          }
-        }
-        if (line) pushLine();
-
-        return lines;
-      };
-
-      // 縮小ループ：高さが収まるまで1pxずつ下げる（最大100ステップ）
-      let lines = wrapLines(size);
-      let guard = 100;
-      while (guard-- > 0) {
-        const totalH = lines.length * Math.ceil(size * 1.2); // line-height相当
-        if (totalH <= maxH) break;
-        if (size <= minSize) break;
-        size -= 1;
-        lines = wrapLines(size);
-      }
-
-      // 垂直・水平ともに中央寄せで描画
-      const totalH = lines.length * Math.ceil(size * 1.2);
-      let ty = y + Math.max((cellH - totalH) / 2, pad);
-      ctx.font = `${size}px 'Noto Sans JP', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
-      for (const lineText of lines) {
-        const tw = ctx.measureText(lineText).width;
-        const tx = x + Math.max((cellW - tw) / 2, pad);
-        ctx.fillText(lineText, tx, ty);
-        ty += Math.ceil(size * 1.2);
-      }
-
-      // 勝ちラインの強調（内側枠）
-      if (winMask && winMask[r][c]) {
-        ctx.strokeStyle = "#f6ad55";
-        ctx.lineWidth = 3;
-        ctx.strokeRect(x + 3, y + 3, cellW - 6, cellH - 6);
-      }
-    }
-  }
-
-  return canvas;
-}
-
-
-function timestamp() {
-  const d = new Date();
-  const pad = n => String(n).padStart(2, "0");
-  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
-}
-
-document.getElementById("saveImage").addEventListener("click", () => {
-  if (!board) return;
-  const { winMask } = countBingos(board);
-  const canvas = drawBoardToCanvas(board, winMask, 2); // 2倍スケールでくっきり
-
-  // ダウンロード
-  if (canvas.toBlob) {
-    canvas.toBlob(blob => {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.download = `bingo-${timestamp()}.png`;
-      a.href = url;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    });
-  } else {
-    // 古い環境：新しいタブに開く → 右クリック保存
-    const dataUrl = canvas.toDataURL("image/png");
-    const win = window.open(dataUrl, "_blank");
-    if (!win) {
-      const a = document.createElement("a");
-      a.download = `bingo-${timestamp()}.png`;
-      a.href = dataUrl;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
-  }
-});
-
-/* ========= 初期化 ========= */
-(function init(){
-  const s = loadState();
-  if (s) {
-    board = s.board;
-    listEl.value = s.list ?? "";
-    useFreeEl.checked = !!s.useFree;
-    seedEl.value = s.seed ?? "";
-    render();
-  }
-})();
-  
-// ===== 共有URLコピー =====
-document.getElementById("copyUrl").addEventListener("click", async () => {
-  const btn = document.getElementById("copyUrl");
-
-  // 現在ページの“綺麗なURL”を作る（/index.html が付いていたら外す）
-  const cleanUrl = (() => {
-    let u = location.origin + location.pathname;
-    u = u.replace(/index\.html$/, "");
-    if (!u.endsWith("/")) u += "/";
-    return u;
-  })();
-
-  // クリップボードへコピー（Clipboard API → フォールバック）
-  try {
-    await navigator.clipboard.writeText(cleanUrl);
-  } catch {
-    const ta = document.createElement("textarea");
-    ta.value = cleanUrl;
-    ta.setAttribute("readonly", "");
-    ta.style.position = "absolute";
-    ta.style.left = "-9999px";
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    ta.remove();
-  }
-
-  // 一時的なフィードバック表示
-  const old = btn.textContent;
-  btn.textContent = "コピーしました！";
-  btn.disabled = true;
-  setTimeout(() => {
-    btn.textContent = old;
-    btn.disabled = false;
-  }, 1200);
-});
-
-// 共有ダイアログ（対応端末のみ）
-document.getElementById("copyUrl").addEventListener("click", async (ev) => {
-  // すでにcleanUrlを作っているなら流用してOK。なければここで作成
-  let u = location.origin + location.pathname;
-  u = u.replace(/index\.html$/, "");
-  if (!u.endsWith("/")) u += "/";
-
-  // Clipboardへコピー（今の処理はそのまま残してOK）
-  try { await navigator.clipboard.writeText(u); } catch {}
-
-  // 共有ダイアログ（対応ブラウザのみ）
-  if (navigator.share) {
-    try {
-      await navigator.share({ title: document.title, url: u });
-    } catch (e) {
-      // キャンセルなどは無視
-    }
-  }
-});
-
-// 不足分を埋めるテンプレ（必要なら自由に編集してください）
+/* 不足分を埋めるテンプレ（必要なら編集OK） */
 const SUGGESTIONS = [
   "推しの配信を見る",
   "推しのポストにいいねする",
@@ -611,45 +200,323 @@ const SUGGESTIONS = [
   "推しのイベントを調べる"
 ];
 
-  
-// === テキストをセル内に収める：大きい文字から徐々に縮小 ===
+/* ★ 枠固定＋不足補完対応の盤面生成 */
+function makeBoard(items, useFree=true, seedStr="") {
+  const cleaned = items.map(s => s.trim()).filter(Boolean);
+
+  // RNG（シード文字列対応）
+  let rng = Math.random;
+  if (seedStr && seedStr.length) {
+    let h = 2166136261 >>> 0;
+    for (let i=0;i<seedStr.length;i++){
+      h ^= seedStr.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    rng = mulberry32(h >>> 0);
+  }
+  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+
+  const need = N*N - (useFree ? 1 : 0);
+  const pool = cleaned.slice();
+
+  // 不足分の埋め
+  const autoFillEl = document.getElementById("autoFill");
+  const useAutoFill = autoFillEl ? autoFillEl.checked : true; // 既定ON
+  while (pool.length < need) {
+    if (useAutoFill) {
+      pool.push(pick(SUGGESTIONS));
+    } else {
+      if (cleaned.length === 0) pool.push("（未設定）");
+      else pool.push(pick(cleaned)); // 重複ありで再使用
+    }
+  }
+
+  shuffle(pool, rng);
+
+  // 5x5に割り当て
+  const board = Array.from({length:N}, ()=>Array(N).fill(null));
+  let k = 0;
+  for (let r=0; r<N; r++) {
+    for (let c=0; c<N; c++) {
+      if (useFree && r===2 && c===2) {
+        board[r][c] = { text: "Free", checked: true, free: true };
+      } else {
+        const txt = pool[k++] ?? "（未設定）";
+        board[r][c] = { text: txt, checked: false, free: false };
+      }
+    }
+  }
+  return board;
+}
+
+function countBingos(board) {
+  const lines = [];
+  for (let r=0; r<N; r++) lines.push(board[r].map(cell => cell.checked));
+  for (let c=0; c<N; c++) lines.push(board.map(row => row[c].checked));
+  lines.push(board.map((row,i)=> row[i].checked));
+  lines.push(board.map((row,i)=> row[N-1-i].checked));
+
+  const wins = lines.map(line => line.every(Boolean));
+  const count = wins.filter(Boolean).length;
+
+  const winMask = Array.from({length:N}, ()=>Array(N).fill(false));
+  let idx = 0;
+  for (let r=0;r<N;r++){ const isWin = wins[idx++]; if (isWin) for (let c=0;c<N;c++) winMask[r][c] = true; }
+  for (let c=0;c<N;c++){ const isWin = wins[idx++]; if (isWin) for (let r=0;r<N;r++) winMask[r][c] = true; }
+  const isWinDiag1 = wins[idx++]; if (isWinDiag1) for (let i=0;i<N;i++) winMask[i][i] = true;
+  const isWinDiag2 = wins[idx++]; if (isWinDiag2) for (let i=0;i<N;i++) winMask[i][N-1-i] = true;
+
+  return { count, winMask };
+}
+
+/* ========= DOM側：文字を枠に収める（自動縮小） ========= */
 function fitCellText(labelEl) {
   const cellEl = labelEl.parentElement;
   if (!cellEl) return;
 
-  // 枠の内寸（padding分を考慮）
-  const pad = 8;  // CSS .cell の padding と揃える
+  const pad = 8; // CSS .cell の padding と揃える
   const maxW = cellEl.clientWidth - pad * 2;
   const maxH = cellEl.clientHeight - pad * 2;
 
-  // 基準フォントサイズ：全角 5×5 目安（枠幅の約1/5）
-  // ただし和文はフォントにより字幅が違うため、まず少し大きめから試行
-  let size = Math.floor(maxW / 5);       // 横5文字基準
-  const minSize = 10;                    // これ以下にはしない（可読性確保）
+  // 横5文字基準（全角5文字を目安にスタート）
+  let size = Math.floor(maxW / 5);
+  const minSize = 10;  // これ以下にはしない（可読性を確保）
 
   labelEl.style.fontSize = size + "px";
   labelEl.style.lineHeight = "1.2";
 
-  // はみ出す間は1pxずつ縮小（単純だが堅牢）
-  // 極端に長文でも最終的に枠に収まる
-  let guard = 100;                       // 無限ループ防止
+  let guard = 120; // 無限ループ防止
   while (guard-- > 0) {
-    // レイアウト計測（スクロール領域がある＝はみ出し）
-    const overH = labelEl.scrollHeight > maxH;
-    const overW = labelEl.scrollWidth  > maxW;
-    if (!overH && !overW) break;        // 収まった！
-
-    if (size <= minSize) break;         // ここまで縮めたら打ち止め
+    // ラベル要素の実寸（スクロールが出ていたらはみ出し）
+    const overH = labelEl.scrollHeight > (maxH);
+    const overW = labelEl.scrollWidth  > (maxW);
+    if (!overH && !overW) break;
+    if (size <= minSize) break;
     size -= 1;
     labelEl.style.fontSize = size + "px";
   }
 }
 
+/* ========= 画像保存：Canvasでも自動縮小して収める ========= */
+function drawBoardToCanvas(board, winMask, scale=2) {
+  const cell = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-size")) || 120;
+  const gap  = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-gap"))  || 6;
+  const pad  = 8;  // DOM側と揃える
+
+  const cellW = cell, cellH = cell;
+  const W = N * cellW + (N - 1) * gap;
+  const H = N * cellH + (N - 1) * gap;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+
+  // 背景
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
+
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const x = c * (cellW + gap);
+      const y = r * (cellH + gap);
+      const cellObj = board[r][c];
+
+      // 背景色
+      if (cellObj.free) ctx.fillStyle = "#f0fff4";
+      else if (cellObj.checked) ctx.fillStyle = "#edf2f7";
+      else if (winMask && winMask[r][c]) ctx.fillStyle = "#ffe08a";
+      else ctx.fillStyle = "#ffffff";
+      ctx.fillRect(x, y, cellW, cellH);
+
+      // 枠線
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
+
+      // テキスト自動縮小（簡易改行ロジック）
+      const maxW = cellW - pad * 2;
+      const maxH = cellH - pad * 2;
+
+      let size = Math.floor(maxW / 5);
+      const minSize = 10;
+      ctx.textBaseline = "top";
+      ctx.fillStyle = cellObj.free ? "#234e52" : "#1a202c";
+
+      const wrapLines = (fontSize) => {
+        ctx.font = `${fontSize}px 'Noto Sans JP', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
+        const raw = cellObj.text || "";
+        const lines = [];
+        let line = "";
+
+        // 和文は1文字ずつでも収まるように測りながら折り返し
+        for (const ch of raw) {
+          const test = line + ch;
+          if (ctx.measureText(test).width <= maxW) line = test;
+          else { lines.push(line); line = ch; }
+        }
+        if (line) lines.push(line);
+        return lines;
+      };
+
+      let lines = wrapLines(size);
+      let guard = 120;
+      while (guard-- > 0) {
+        const lh = Math.ceil(size * 1.2);
+        const totalH = lines.length * lh;
+        if (totalH <= maxH) break;
+        if (size <= minSize) break;
+        size -= 1;
+        lines = wrapLines(size);
+      }
+
+      // 中央寄せで描画
+      const lh = Math.ceil(size * 1.2);
+      const totalH = lines.length * lh;
+      let ty = y + Math.max((cellH - totalH) / 2, pad);
+      ctx.font = `${size}px 'Noto Sans JP', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
+      for (const t of lines) {
+        const tw = ctx.measureText(t).width;
+        const tx = x + Math.max((cellW - tw) / 2, pad);
+        ctx.fillText(t, tx, ty);
+        ty += lh;
+      }
+
+      // 勝ちライン強調
+      if (winMask && winMask[r][c]) {
+        ctx.strokeStyle = "#f6ad55";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 3, y + 3, cellW - 6, cellH - 6);
+      }
+    }
+  }
+
+  return canvas;
+}
+
+/* ========= UI描画 ========= */
+const gridEl = document.getElementById("grid");
+const bingoCountEl = document.getElementById("bingoCount");
+const listEl = document.getElementById("list");
+const useFreeEl = document.getElementById("useFree");
+const seedEl = document.getElementById("seed");
+const autoFillEl = document.getElementById("autoFill");
+
+let board = null;
+
+function render() {
+  gridEl.innerHTML = "";
+  if (!board) return;
+
+  const { count, winMask } = countBingos(board);
+  bingoCountEl.textContent = String(count);
+
+  for (let r=0;r<N;r++){
+    for (let c=0;c<N;c++){
+      const cell = board[r][c];
+      const div = document.createElement("button");
+      div.className = "cell" + (cell.free ? " free" : "") + (cell.checked ? " checked" : "") + (winMask[r][c] ? " win" : "");
+      div.setAttribute("role","gridcell");
+      div.setAttribute("aria-pressed", cell.checked ? "true" : "false");
+      div.title = cell.text;
+
+      // ★ ラベル要素を追加し、文字サイズを自動調整
+      const span = document.createElement("span");
+      span.className = "label";
+      span.textContent = cell.text;
+      div.appendChild(span);
+      fitCellText(span);
+
+      // クリックでチェック切替（Freeは固定）
+      div.addEventListener("click", () => {
+        if (!cell.free) {
+          cell.checked = !cell.checked;
+          saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: seedEl.value, autoFill: autoFillEl.checked });
+          render();
+        }
+      });
+      gridEl.appendChild(div);
+    }
+  }
+}
+
+/* ========= ボタンのイベント ========= */
+document.getElementById("generate").addEventListener("click", () => {
+  const items = parseList(listEl.value);
+  board = makeBoard(items, useFreeEl.checked, seedEl.value.trim());
+  saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: seedEl.value, autoFill: autoFillEl.checked });
+  render();
+});
+
+document.getElementById("shuffle").addEventListener("click", () => {
+  let items = parseList(listEl.value);
+  if (items.length === 0 && board) {
+    items = board.flat().filter(c => !c.free).map(c => c.text).filter(Boolean);
+  }
+  board = makeBoard(items, useFreeEl.checked, ""); // シードなしで毎回ランダム
+  saveState({ board, list: listEl.value, useFree: useFreeEl.checked, seed: "", autoFill: autoFillEl.checked });
+  render();
+});
+
+document.getElementById("clear").addEventListener("click", () => {
+  board = null;
+  gridEl.innerHTML = "";
+  bingoCountEl.textContent = "0";
+  localStorage.removeItem("todo-bingo-state");
+});
+
+/* ========= 画像として保存 ========= */
+function timestamp() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+document.getElementById("saveImage").addEventListener("click", () => {
+  if (!board) return;
+  const { winMask } = countBingos(board);
+  const canvas = drawBoardToCanvas(board, winMask, 2); // 2倍スケールでくっきり
+
+  // ダウンロード
+  if (canvas.toBlob) {
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = `bingo-${timestamp()}.png`;
+      a.href = url;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+  } else {
+    const dataUrl = canvas.toDataURL("image/png");
+    const win = window.open(dataUrl, "_blank");
+    if (!win) {
+      const a = document.createElement("a");
+      a.download = `bingo-${timestamp()}.png`;
+      a.href = dataUrl;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }
+});
+
+/* ========= 初期化 ========= */
+(function init(){
+  const s = loadState();
+  if (s) {
+    board = s.board;
+    listEl.value = s.list ?? "";
+    useFreeEl.checked = !!s.useFree;
+    seedEl.value = s.seed ?? "";
+    if (typeof s.autoFill === "boolean") autoFillEl.checked = s.autoFill;
+    render();
+  }
+})();
 </script>
 </body>
 </html>
-
-
-
-
-
