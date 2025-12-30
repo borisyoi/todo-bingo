@@ -294,8 +294,75 @@ document.getElementById("clear").addEventListener("click", () => {
     render();
   }
 })();
+  
+<script>
+  /* ここには既存のコード（makeBoard, render, 各ボタンの処理など）が入っています */
+
+  // ▼ 画像保存の完全版：互換性重視のダウンロード処理
+  function timestamp() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+  }
+
+  document.getElementById("saveImage").addEventListener("click", async () => {
+    const grid = document.getElementById("grid");
+    if (!grid) return;
+
+    try {
+      // ビンゴグリッドだけを画像化（白背景＆2倍スケールでくっきり）
+      const canvas = await html2canvas(grid, {
+        backgroundColor: "#ffffff", // 透過にしたいなら null
+        scale: 2,                   // 高解像度
+        useCORS: true               // 念のため：外部画像がある場合の対策
+      });
+
+      // 互換性の高いダウンロード（toBlob → ObjectURL → a.click）
+      if (canvas.toBlob) {
+        canvas.toBlob(blob => {
+          if (!blob) {
+            // フォールバック：base64で保存
+            const fallback = document.createElement("a");
+            fallback.download = `bingo-${timestamp()}.png`;
+            fallback.href = canvas.toDataURL("image/png");
+            document.body.appendChild(fallback);
+            fallback.click();
+            document.body.removeChild(fallback);
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.download = `bingo-${timestamp()}.png`;
+          link.href = url;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        });
+      } else {
+        // とても古い環境用フォールバック：新しいタブで開く → 右クリック保存
+        const dataUrl = canvas.toDataURL("image/png");
+        const newTab = window.open(dataUrl, "_blank");
+        if (!newTab) {
+          // ポップアップブロック対策
+          const link = document.createElement("a");
+          link.download = `bingo-${timestamp()}.png`;
+          link.href = dataUrl;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
+    } catch (err) {
+      console.error("画像保存エラー:", err);
+      alert("画像の保存に失敗しました。ページを再読み込みして、もう一度お試しください。");
+    }
+  });
+</script>
+
 </script>
 </body>
 </html>
+
 
 
