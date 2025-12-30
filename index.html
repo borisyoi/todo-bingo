@@ -71,6 +71,40 @@
     .footer { font-size: 13px; color: #4a5568; margin-top: 8px; }
     .stats { margin-top: 8px; font-weight: 600; }
     @media (max-width: 480px) { .cell { min-height: 64px; font-size: 13px; } }
+
+/* === 固定サイズ設定 === */
+:root {
+  --cell-size: 120px;  /* 枠の一辺の長さ（ここを好みで変えてOK） */
+  --cell-gap: 6px;
+}
+
+/* グリッドは固定幅の5列 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(5, var(--cell-size));
+  gap: var(--cell-gap);
+}
+
+/* セルは正方形に固定（ボタンだが見た目はカード） */
+.cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  min-height: unset;             /* 以前のmin-heightを無効化 */
+  padding: 8px;                  /* 内側余白（JS側と揃える） */
+  overflow: hidden;              /* 枠からはみ出さない */
+}
+
+/* セル内のテキスト（JSで挿入するspan用） */
+.cell .label {
+  display: block;
+  width: 100%;
+  height: 100%;
+  white-space: pre-wrap;         /* 改行を保持しつつ折り返す */
+  word-break: break-word;        /* 長い単語でも適宜折り返す */
+  line-height: 1.2;              /* 行間（JSでサイズ調整あり） */
+}
+``
+
   </style>
 </head>
 <body>
@@ -241,8 +275,17 @@ function render() {
       div.className = "cell" + (cell.free ? " free" : "") + (cell.checked ? " checked" : "") + (winMask[r][c] ? " win" : "");
       div.setAttribute("role","gridcell");
       div.setAttribute("aria-pressed", cell.checked ? "true" : "false");
-      div.title = cell.text;
-      div.textContent = cell.text;
+
+div.title = cell.text;
+
+const span = document.createElement("span");
+span.className = "label";
+span.textContent = cell.text;
+div.appendChild(span);
+
+// ▼ 枠にテキストを収める（自動縮小）
+fitCellText(span);
+
       div.addEventListener("click", () => {
         if (!cell.free) {
           cell.checked = !cell.checked;
@@ -300,11 +343,17 @@ function wrapLines(ctx, text, maxWidth, maxLines) {
   return lines;
 }
 
+
 function drawBoardToCanvas(board, winMask, scale=2) {
-  // ビンゴのCanvas画像を生成（グリッドのみ）
-  const cellW = 140, cellH = 110, gap = 6;
-  const W = N*cellW + (N-1)*gap;
-  const H = N*cellH + (N-1)*gap;
+  // Canvas上でもDOMと同じ見た目で描画する
+  const N = 5;
+  const cell = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-size")) || 120;
+  const gap  = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-gap"))  || 6;
+  const pad  = 8; // DOM側と揃える
+
+  const cellW = cell, cellH = cell;
+  const W = N * cellW + (N - 1) * gap;
+  const H = N * cellH + (N - 1) * gap;
 
   const canvas = document.createElement("canvas");
   canvas.width = W * scale;
@@ -318,16 +367,16 @@ function drawBoardToCanvas(board, winMask, scale=2) {
   ctx.fillRect(0, 0, W, H);
 
   // 1セルずつ描画
-  for (let r=0; r<N; r++) {
-    for (let c=0; c<N; c++) {
-      const x = c*(cellW + gap);
-      const y = r*(cellH + gap);
-      const cell = board[r][c];
+  for (let r = 0; r < N; r++) {
+    for (let c = 0; c < N; c++) {
+      const x = c * (cellW + gap);
+      const y = r * (cellH + gap);
+      const cellObj = board[r][c];
 
-      // 背景色
-      if (cell.free) {
+      // 背景色（DOMと合わせる）
+      if (cellObj.free) {
         ctx.fillStyle = "#f0fff4";
-      } else if (cell.checked) {
+      } else if (cellObj.checked) {
         ctx.fillStyle = "#edf2f7";
       } else if (winMask && winMask[r][c]) {
         ctx.fillStyle = "#ffe08a";
@@ -341,42 +390,90 @@ function drawBoardToCanvas(board, winMask, scale=2) {
       ctx.lineWidth = 2;
       ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
 
-      // テキスト
-      ctx.fillStyle = cell.free ? "#234e52" : "#1a202c";
-      ctx.font = "14px 'Noto Sans JP', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+      // テキスト自動縮小
+      const maxW = cellW - pad * 2;
+      const maxH = cellH - pad * 2;
+
+      // まず「横5文字基準」のサイズから開始
+      let size = Math.floor(maxW / 5);
+      const minSize = 10;
+
       ctx.textBaseline = "top";
+      ctx.fillStyle = cellObj.free ? "#234e52" : "#1a202c";
 
-      const padding = 10;
-      const maxWidth = cellW - padding*2;
-      const lines = wrapLines(ctx, cell.text, maxWidth, 4); // 最大4行まで
+      // 和文を折り返すための簡易ラッパー
+      const wrapLines = (fontSize) => {
+        ctx.font = `${fontSize}px 'Noto Sans JP', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
+        const raw = cellObj.text || "";
+        const words = raw.split(/\s+/); // 英単語はスペース区切り、和文は1文字ずつ
+        const lines = [];
+        let line = "";
 
-      const totalH = lines.length * 18;
-      let ty = y + (cellH - totalH)/2; // 垂直中央寄せ
-      for (const line of lines) {
-        const tw = ctx.measureText(line).width;
-        const tx = x + (cellW - tw)/2; // 水平中央寄せ
-        ctx.fillText(line, tx, ty);
-        ty += 18;
-      }
-    }
-  }
+        // 和文（スペースなし）が多い想定：1文字ずつでも収まるように
+        const pushLine = () => { lines.push(line); line = ""; };
 
-  // 勝ちラインの強調（内側枠）
-  if (winMask) {
-    ctx.strokeStyle = "#f6ad55";
-    ctx.lineWidth = 3;
-    for (let r=0;r<N;r++){
-      for (let c=0;c<N;c++){
-        if (winMask[r][c]) {
-          const x = c*(cellW + gap), y = r*(cellH + gap);
-          ctx.strokeRect(x + 3, y + 3, cellW - 6, cellH - 6);
+        for (const w of words) {
+          // 和文の塊は1文字ずつ処理
+          if (!/[A-Za-z0-9]/.test(w) && !/\s/.test(w)) {
+            for (const ch of w) {
+              const test = line + ch;
+              if (ctx.measureText(test).width <= maxW) {
+                line = test;
+              } else {
+                pushLine();
+                line = ch;
+              }
+            }
+            // 単語境界のスペースはそのまま次へ
+          } else {
+            const add = (line ? line + " " + w : w);
+            if (ctx.measureText(add).width <= maxW) {
+              line = add;
+            } else {
+              pushLine();
+              line = w;
+            }
+          }
         }
+        if (line) pushLine();
+
+        return lines;
+      };
+
+      // 縮小ループ：高さが収まるまで1pxずつ下げる（最大100ステップ）
+      let lines = wrapLines(size);
+      let guard = 100;
+      while (guard-- > 0) {
+        const totalH = lines.length * Math.ceil(size * 1.2); // line-height相当
+        if (totalH <= maxH) break;
+        if (size <= minSize) break;
+        size -= 1;
+        lines = wrapLines(size);
+      }
+
+      // 垂直・水平ともに中央寄せで描画
+      const totalH = lines.length * Math.ceil(size * 1.2);
+      let ty = y + Math.max((cellH - totalH) / 2, pad);
+      ctx.font = `${size}px 'Noto Sans JP', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif`;
+      for (const lineText of lines) {
+        const tw = ctx.measureText(lineText).width;
+        const tx = x + Math.max((cellW - tw) / 2, pad);
+        ctx.fillText(lineText, tx, ty);
+        ty += Math.ceil(size * 1.2);
+      }
+
+      // 勝ちラインの強調（内側枠）
+      if (winMask && winMask[r][c]) {
+        ctx.strokeStyle = "#f6ad55";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 3, y + 3, cellW - 6, cellH - 6);
       }
     }
   }
 
   return canvas;
 }
+
 
 function timestamp() {
   const d = new Date();
@@ -515,9 +612,43 @@ const SUGGESTIONS = [
 ];
 
   
+// === テキストをセル内に収める：大きい文字から徐々に縮小 ===
+function fitCellText(labelEl) {
+  const cellEl = labelEl.parentElement;
+  if (!cellEl) return;
+
+  // 枠の内寸（padding分を考慮）
+  const pad = 8;  // CSS .cell の padding と揃える
+  const maxW = cellEl.clientWidth - pad * 2;
+  const maxH = cellEl.clientHeight - pad * 2;
+
+  // 基準フォントサイズ：全角 5×5 目安（枠幅の約1/5）
+  // ただし和文はフォントにより字幅が違うため、まず少し大きめから試行
+  let size = Math.floor(maxW / 5);       // 横5文字基準
+  const minSize = 10;                    // これ以下にはしない（可読性確保）
+
+  labelEl.style.fontSize = size + "px";
+  labelEl.style.lineHeight = "1.2";
+
+  // はみ出す間は1pxずつ縮小（単純だが堅牢）
+  // 極端に長文でも最終的に枠に収まる
+  let guard = 100;                       // 無限ループ防止
+  while (guard-- > 0) {
+    // レイアウト計測（スクロール領域がある＝はみ出し）
+    const overH = labelEl.scrollHeight > maxH;
+    const overW = labelEl.scrollWidth  > maxW;
+    if (!overH && !overW) break;        // 収まった！
+
+    if (size <= minSize) break;         // ここまで縮めたら打ち止め
+    size -= 1;
+    labelEl.style.fontSize = size + "px";
+  }
+}
+
 </script>
 </body>
 </html>
+
 
 
 
