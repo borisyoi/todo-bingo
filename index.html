@@ -72,9 +72,6 @@
     .stats { margin-top: 8px; font-weight: 600; }
     @media (max-width: 480px) { .cell { min-height: 64px; font-size: 13px; } }
   </style>
-
-  <!-- ★正しい <script> タグで html2canvas を読み込む（この1行だけ。生のURL文字列は置かない） -->
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/htmls</script>
 </head>
 <body>
   <div class="container">
@@ -177,17 +174,14 @@ function countBingos(board) {
   for (let c=0; c<N; c++) lines.push(board.map(row => row[c].checked));
   lines.push(board.map((row,i)=> row[i].checked));
   lines.push(board.map((row,i)=> row[N-1-i].checked));
-
   const wins = lines.map(line => line.every(Boolean));
   const count = wins.filter(Boolean).length;
-
   const winMask = Array.from({length:N}, ()=>Array(N).fill(false));
   let idx = 0;
   for (let r=0;r<N;r++){ const isWin = wins[idx++]; if (isWin) for (let c=0;c<N;c++) winMask[r][c] = true; }
   for (let c=0;c<N;c++){ const isWin = wins[idx++]; if (isWin) for (let r=0;r<N;r++) winMask[r][c] = true; }
   const isWinDiag1 = wins[idx++]; if (isWinDiag1) for (let i=0;i<N;i++) winMask[i][i] = true;
   const isWinDiag2 = wins[idx++]; if (isWinDiag2) for (let i=0;i<N;i++) winMask[i][N-1-i] = true;
-
   return { count, winMask };
 }
 
@@ -253,59 +247,139 @@ document.getElementById("clear").addEventListener("click", () => {
   localStorage.removeItem("todo-bingo-state");
 });
 
-/* ========= 画像として保存 ========= */
+/* ========= 画像として保存（外部依存ゼロ：Canvasに自前描画） ========= */
+
+// テキスト折り返し（日本語・スペースなしも1文字ずつで折り返す簡易版）
+function wrapLines(ctx, text, maxWidth, maxLines) {
+  const lines = [];
+  let line = "";
+  for (const ch of text) {
+    const test = line + ch;
+    if (ctx.measureText(test).width <= maxWidth) {
+      line = test;
+    } else {
+      lines.push(line);
+      line = ch;
+      if (lines.length >= maxLines) break;
+    }
+  }
+  if (lines.length < maxLines && line) lines.push(line);
+  return lines;
+}
+
+function drawBoardToCanvas(board, winMask, scale=2) {
+  // ビンゴのCanvas画像を生成（グリッドのみ）
+  const cellW = 140, cellH = 110, gap = 6;
+  const W = N*cellW + (N-1)*gap;
+  const H = N*cellH + (N-1)*gap;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+
+  const ctx = canvas.getContext("2d");
+  ctx.scale(scale, scale);
+
+  // 背景
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
+
+  // 1セルずつ描画
+  for (let r=0; r<N; r++) {
+    for (let c=0; c<N; c++) {
+      const x = c*(cellW + gap);
+      const y = r*(cellH + gap);
+      const cell = board[r][c];
+
+      // 背景色
+      if (cell.free) {
+        ctx.fillStyle = "#f0fff4";
+      } else if (cell.checked) {
+        ctx.fillStyle = "#edf2f7";
+      } else if (winMask && winMask[r][c]) {
+        ctx.fillStyle = "#ffe08a";
+      } else {
+        ctx.fillStyle = "#ffffff";
+      }
+      ctx.fillRect(x, y, cellW, cellH);
+
+      // 枠線
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
+
+      // テキスト
+      ctx.fillStyle = cell.free ? "#234e52" : "#1a202c";
+      ctx.font = "14px 'Noto Sans JP', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+      ctx.textBaseline = "top";
+
+      const padding = 10;
+      const maxWidth = cellW - padding*2;
+      const lines = wrapLines(ctx, cell.text, maxWidth, 4); // 最大4行まで
+
+      const totalH = lines.length * 18;
+      let ty = y + (cellH - totalH)/2; // 垂直中央寄せ
+      for (const line of lines) {
+        const tw = ctx.measureText(line).width;
+        const tx = x + (cellW - tw)/2; // 水平中央寄せ
+        ctx.fillText(line, tx, ty);
+        ty += 18;
+      }
+    }
+  }
+
+  // 勝ちラインの強調（内側枠）
+  if (winMask) {
+    ctx.strokeStyle = "#f6ad55";
+    ctx.lineWidth = 3;
+    for (let r=0;r<N;r++){
+      for (let c=0;c<N;c++){
+        if (winMask[r][c]) {
+          const x = c*(cellW + gap), y = r*(cellH + gap);
+          ctx.strokeRect(x + 3, y + 3, cellW - 6, cellH - 6);
+        }
+      }
+    }
+  }
+
+  return canvas;
+}
+
 function timestamp() {
   const d = new Date();
   const pad = n => String(n).padStart(2, "0");
   return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 }
 
-document.getElementById("saveImage").addEventListener("click", async () => {
-  const grid = document.getElementById("grid");
-  if (!grid) return;
+document.getElementById("saveImage").addEventListener("click", () => {
+  if (!board) return;
+  const { winMask } = countBingos(board);
+  const canvas = drawBoardToCanvas(board, winMask, 2); // 2倍スケールでくっきり
 
-  try {
-    const canvas = await html2canvas(grid, {
-      backgroundColor: "#ffffff", // 透過にしたいなら null
-      scale: 2,                   // 高解像度
-      useCORS: true
+  // ダウンロード
+  if (canvas.toBlob) {
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.download = `bingo-${timestamp()}.png`;
+      a.href = url;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     });
-
-    if (canvas.toBlob) {
-      canvas.toBlob(blob => {
-        if (!blob) {
-          const fallback = document.createElement("a");
-          fallback.download = `bingo-${timestamp()}.png`;
-          fallback.href = canvas.toDataURL("image/png");
-          document.body.appendChild(fallback);
-          fallback.click();
-          document.body.removeChild(fallback);
-          return;
-        }
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.download = `bingo-${timestamp()}.png`;
-        link.href = url;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      });
-    } else {
-      const dataUrl = canvas.toDataURL("image/png");
-      const newTab = window.open(dataUrl, "_blank");
-      if (!newTab) {
-        const link = document.createElement("a");
-        link.download = `bingo-${timestamp()}.png`;
-        link.href = dataUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+  } else {
+    // 古い環境：新しいタブに開く → 右クリック保存
+    const dataUrl = canvas.toDataURL("image/png");
+    const win = window.open(dataUrl, "_blank");
+    if (!win) {
+      const a = document.createElement("a");
+      a.download = `bingo-${timestamp()}.png`;
+      a.href = dataUrl;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
     }
-  } catch (err) {
-    console.error("画像保存エラー:", err);
-    alert("画像の保存に失敗しました。ページを再読み込みして、もう一度お試しください。");
   }
 });
 
