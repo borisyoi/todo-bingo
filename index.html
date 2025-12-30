@@ -91,6 +91,7 @@
           <button id="clear" class="btn secondary">カードをクリア</button>
           <button id="saveImage" class="btn secondary">画像として保存</button>
           <button id="copyUrl" class="btn secondary">共有URLをコピー</button>
+          <label><input type="checkbox" id="autoFill" checked> 足りない分をテンプレで自動補完</label>
         </div>
         <p class="footer">※ リストは25項目以上が理想。Freeありなら24項目以上でOK。足りない場合は重複なく選べる範囲で穴埋めします。</p>
       </div>
@@ -138,8 +139,12 @@ function loadState() {
 /* ========= ビンゴロジック ========= */
 const N = 5;
 
+
 function makeBoard(items, useFree=true, seedStr="") {
-  const uniq = Array.from(new Set(items));
+  // ① 入力整形：空行除外・前後空白除去
+  const cleaned = items.map(s => s.trim()).filter(Boolean);
+
+  // ② RNG（シード対応）
   let rng = Math.random;
   if (seedStr && seedStr.length) {
     let h = 2166136261 >>> 0;
@@ -149,11 +154,37 @@ function makeBoard(items, useFree=true, seedStr="") {
     }
     rng = mulberry32(h >>> 0);
   }
-  const need = N*N - (useFree ? 1 : 0);
-  const pool = uniq.slice();
-  shuffle(pool, rng);
-  const selected = pool.slice(0, need);
+  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
 
+  // ③ 必要数を計算
+  const N = 5;
+  const need = (N*N) - (useFree ? 1 : 0);
+
+  // ④ 現在の入力からプール作成（重複は許可：不足時の自由度のため）
+  const pool = cleaned.slice();
+
+  // ⑤ 不足分の埋め方（テンプレONならSUGGESTIONSから、OFFなら自分の入力を重複で）
+  const autoFillEl = document.getElementById("autoFill");
+  const useAutoFill = autoFillEl ? autoFillEl.checked : true; // 既定ON
+
+  while (pool.length < need) {
+    if (useAutoFill) {
+      // テンプレからランダム補完
+      pool.push(pick(SUGGESTIONS));
+    } else {
+      // 自分の入力を重複許可で再使用。何も無ければ「（未設定）」で埋める
+      if (cleaned.length === 0) {
+        pool.push("（未設定）");
+      } else {
+        pool.push(pick(cleaned));
+      }
+    }
+  }
+
+  // ⑥ ランダム並びにする
+  shuffle(pool, rng);
+
+  // ⑦ 5x5に割り当て
   const board = Array.from({length:N}, ()=>Array(N).fill(null));
   let k = 0;
   for (let r=0; r<N; r++) {
@@ -161,13 +192,14 @@ function makeBoard(items, useFree=true, seedStr="") {
       if (useFree && r===2 && c===2) {
         board[r][c] = { text: "Free", checked: true, free: true };
       } else {
-        const txt = selected[k++] ?? "";
-        board[r][c] = { text: txt || "（未設定）", checked: false, free: false };
+        const txt = pool[k++] ?? "（未設定）";
+        board[r][c] = { text: txt, checked: false, free: false };
       }
     }
   }
   return board;
 }
+
 
 function countBingos(board) {
   const lines = [];
@@ -453,9 +485,40 @@ document.getElementById("copyUrl").addEventListener("click", async (ev) => {
   }
 });
 
+// 不足分を埋めるテンプレ（必要なら自由に編集してください）
+const SUGGESTIONS = [
+  "推しの配信を見る",
+  "推しのポストにいいねする",
+  "推しのポストをリポストする",
+  "推しの切り抜きを見る",
+  "推しのグッズを整理する",
+  "推しの名場面をスクショ保存",
+  "推し予定をカレンダーに入れる",
+  "推しタグで感想を検索",
+  "推しへの応援メッセージを書く",
+  "推しの過去アーカイブを1本見る",
+  "推しの新着通知を確認",
+  "推しのファン企画をチェック",
+  "推しのおすすめ曲をプレイリストに追加",
+  "推しカラーのアイテムを身につける",
+  "推しの誕生日企画を調べる",
+  "推しの配信時間にアラーム設定",
+  "推しに関する日記を1行書く",
+  "推しとの思い出を写真で振り返る",
+  "推し関連の本・記事を読む",
+  "推しの名言をメモする",
+  "推しの新作情報を確認",
+  "推し仲間に近況を共有する",
+  "推しのハッシュタグでポストする",
+  "推しのグッズ購入候補をリスト化する",
+  "推しのイベントを調べる"
+];
+
+  
 </script>
 </body>
 </html>
+
 
 
 
