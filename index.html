@@ -49,22 +49,22 @@
       margin-top: 12px;
     }
 
-    /* ★ セルは正方形に固定 */
+    /* ★ セルは正方形に固定（フレックスで縦横中央揃え） */
     .cell {
       width: var(--cell-size);
       height: var(--cell-size);
-      min-height: unset;          /* 以前のmin-heightを無効化 */
+      min-height: unset;
       padding: 8px;               /* 内側余白（JS側の計測と揃える） */
       background: #fff;
       border: 1px solid var(--border);
       border-radius: 10px;
       display: flex;
-      align-items: center;
-      justify-content: center;
+      align-items: center;         /* 縦中央 */
+      justify-content: center;     /* 横中央 */
       text-align: center;
       position: relative;
       cursor: pointer;
-      overflow: hidden;           /* はみ出しを隠す */
+      overflow: hidden;            /* はみ出しを隠す */
       color: #1a202c;
     }
     .cell.free {
@@ -85,14 +85,15 @@
     }
     .cell:hover { background: #f8fafc; }
 
-    /* ★ セル内テキスト用の要素（JSで挿入する span.label） */
+    /* ★ セル内テキスト用要素：縦中央揃えのため高さは auto、内容に合わせる */
     .cell .label {
-      display: block;
+      display: inline-block;   /* コンテンツ高さに合わせる */
       width: 100%;
-      height: 100%;
-      white-space: pre-wrap;   /* 改行を保持しつつ折り返し */
+      /* height: 100%;  ← 縦中央を崩すため入れない */
+      white-space: pre-wrap;   /* 改行保持＋折り返し */
       word-break: break-word;  /* 長い語も折り返し */
-      line-height: 1.2;        /* 行間はJS側の計算と揃える */
+      line-height: 1.2;        /* JS側の計算と揃える */
+      text-align: center;      /* 横中央 */
     }
 
     .footer { font-size: 13px; color: #4a5568; margin-top: 8px; }
@@ -125,7 +126,7 @@
           <button id="saveImage" class="btn secondary">画像として保存</button>
         </div>
 
-        <p class="footer">※ 入力が不足する場合はテンプレで補完（ON時）。枠は固定、長文は自動縮小します。</p>
+        <p class="footer">※ 入力が不足する場合はテンプレで補完（ON時）。枠は固定、長文は自動縮小＆縦中央です。</p>
       </div>
 
       <div class="panel" style="flex:1 1 380px;">
@@ -269,7 +270,7 @@ function countBingos(board) {
   return { count, winMask };
 }
 
-/* ========= DOM側：文字を枠に収める（自動縮小） ========= */
+/* ========= DOM側：文字を枠に収める（自動縮小／縦中央揃え対応） ========= */
 function fitCellText(labelEl) {
   const cellEl = labelEl.parentElement;
   if (!cellEl) return;
@@ -282,6 +283,8 @@ function fitCellText(labelEl) {
   let size = Math.floor(maxW / 5);
   const minSize = 10;  // これ以下にはしない（可読性を確保）
 
+  // 縦中央揃えのため、高さは内容に合わせる
+  labelEl.style.height = "auto";
   labelEl.style.fontSize = size + "px";
   labelEl.style.lineHeight = "1.2";
 
@@ -297,7 +300,7 @@ function fitCellText(labelEl) {
   }
 }
 
-/* ========= 画像保存：Canvasでも自動縮小して収める ========= */
+/* ========= 画像保存：Canvasでも自動縮小して収める（縦中央） ========= */
 function drawBoardToCanvas(board, winMask, scale=2) {
   const cell = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-size")) || 120;
   const gap  = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--cell-gap"))  || 6;
@@ -336,7 +339,7 @@ function drawBoardToCanvas(board, winMask, scale=2) {
       ctx.lineWidth = 2;
       ctx.strokeRect(x + 1, y + 1, cellW - 2, cellH - 2);
 
-      // テキスト自動縮小（簡易改行ロジック）
+      // テキスト自動縮小（簡易改行：1文字ずつ折り返し）
       const maxW = cellW - pad * 2;
       const maxH = cellH - pad * 2;
 
@@ -351,7 +354,6 @@ function drawBoardToCanvas(board, winMask, scale=2) {
         const lines = [];
         let line = "";
 
-        // 和文は1文字ずつでも収まるように測りながら折り返し
         for (const ch of raw) {
           const test = line + ch;
           if (ctx.measureText(test).width <= maxW) line = test;
@@ -372,7 +374,7 @@ function drawBoardToCanvas(board, winMask, scale=2) {
         lines = wrapLines(size);
       }
 
-      // 中央寄せで描画
+      // 中央寄せで描画（縦・横）
       const lh = Math.ceil(size * 1.2);
       const totalH = lines.length * lh;
       let ty = y + Math.max((cellH - totalH) / 2, pad);
@@ -422,11 +424,16 @@ function render() {
       div.setAttribute("aria-pressed", cell.checked ? "true" : "false");
       div.title = cell.text;
 
-      // ★ ラベル要素を追加し、文字サイズを自動調整
+      // ★ ラベル要素を追加し、文字サイズを自動調整（縦中央対応）
       const span = document.createElement("span");
       span.className = "label";
       span.textContent = cell.text;
       div.appendChild(span);
+
+      // 測定前に高さを内容に合わせる
+      span.style.height = "auto";
+
+      // 枠にテキストを収める（自動縮小）
       fitCellText(span);
 
       // クリックでチェック切替（Freeは固定）
@@ -517,6 +524,11 @@ document.getElementById("saveImage").addEventListener("click", () => {
     render();
   }
 })();
+
+/* ========= 画面サイズ変更時に再フィット（任意だが推奨） ========= */
+window.addEventListener("resize", () => {
+  document.querySelectorAll(".cell .label").forEach(el => fitCellText(el));
+});
 </script>
 </body>
 </html>
